@@ -4,11 +4,10 @@
 // WAY 1 of writing the wrapper
 
 const asyncHandler = (requestHandler) => {
-    (req,res,next) => {
-        Promise.resolve(requestHandler(req,res,next)).catch(err =>next(err))
-    }
-}
-
+  (req, res, next) => {
+    Promise.resolve(requestHandler(req, res, next)).catch((err) => next(err));
+  };
+};
 
 export { asyncHandler };
 
@@ -26,7 +25,6 @@ const asyncHandler = (functionhandler) => async (req, res, next) => {
     
 };
 */
-
 
 /*
     WAY 3 of writing it
