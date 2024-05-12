@@ -13,7 +13,7 @@ const userSchema = new Schema(
       trim: true,
       index: true,
     },
-    username: {
+    email: {
       type: String,
       required: true,
       unique: true,
@@ -52,15 +52,21 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
+
+// to hash the password before saving it to the database
 userSchema.pre("save", async function (next) {
   if (this.isModified("password")) return next();
 
   this.password =await bcrypt.hash(this.password, 10);
   next();
 });
+
+// to check if the password is correct
 userSchema.method.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
+
+// to generate access token	
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
@@ -76,6 +82,8 @@ userSchema.methods.generateAccessToken = function () {
   );
 };
 
+
+// to generate refresh token
 userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {

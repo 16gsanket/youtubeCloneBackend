@@ -41,7 +41,7 @@ const VideoSchema = new Schema(
     },{timestamps:true}
 )
 
-
+//plugin in used to extent the functionality of the schema or model
 VideoSchema.plugin(mongooseAggregatePaginate)
 
 export const Video = mongoose.model('Video' , VideoSchema)
