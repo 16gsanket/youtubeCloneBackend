@@ -119,63 +119,70 @@ const registerUser = asynchandler(async (req, res, next) => {
     .json(new apiResponse(200, createdUser, "user registered successfully"));
 });
 
-const loginUser = asynchandler(async (req, res) => {
-  const { email, username, password } = req.body;
+// const loginUser = asynchandler(async (req, res) => {
+//   const { email, username, password } = req.body;
 
-  // validation if username or email exists
-  if (!email || !username) {
-    throw new apiError(400, "Provide Email or Username");
-  }
+//   // validation if username or email exists
+//   if (!email || !username) {
+//     throw new apiError(400, "Provide Email or Username");
+//   }
 
-  // finding the user from the cred passed
-  const userFound = await User.findOne({
-    $or: [{ username }, { email }],
-  });
-  // checking if user if found or not
-  if (!userFound) {
-  throw new apiError(404, "user not found");
-}
+//   // finding the user from the cred passed
+//   const userFound = await User.findOne({
+//     $or: [{ username }, { email }],
+//   });
+//   // checking if user if found or not
+//   if (!userFound) {
+//   throw new apiError(404, "user not found");
+// }
 
-// checking if password is correct
-const isPasswordValid = await userFound.isPasswordCorrect(password);
+// // checking if password is correct
+// const isPasswordValid = await userFound.isPasswordCorrect(password);
 
-// checking if password is correct
-if (!isPasswordValid) {
-  throw new apiError(401, "password is not correct");
-}
+// // checking if password is correct
+// if (!isPasswordValid) {
+//   throw new apiError(401, "password is not correct");
+// }
 
-const { refreshToken, accessToken } = generateAccessAndRefreshTokens(
-  userFound._id
-);
+// const { refreshToken, accessToken } = generateAccessAndRefreshTokens(
+//   userFound._id
+// );
 
-// this step ensures that we get the user detals with the refresh token and accesstoken although in final step we do not send the token to the user directly
-const loggedInUser = await User.findById(userFound._id).select(
-  "-password -refreshToken"
-);
+// // this step ensures that we get the user detals with the refresh token and accesstoken although in final step we do not send the token to the user directly
+// const loggedInUser = await User.findById(userFound._id).select(
+//   "-password -refreshToken"
+// );
 
-//setting cookie confugarations..
-const options = {
-  // this 'httpOnly' ensures that only server can change the cookie informations and not anyone
-  httpOnly: true,
-  secure: true,
-};
+// //setting cookie confugarations..
+// const options = {
+//   // this 'httpOnly' ensures that only server can change the cookie informations and not anyone
+//   httpOnly: true,
+//   secure: true,
+// };
 
-res
-  .status(200)
-  .cookie("accessToken", accessToken, options)
-  .cookie("refreshToken", refreshToken, options)
-  .json(
-    new apiResponse(
-      200,
-      { user: loggedInUser, accessToken, refreshToken },
-      "user Logged In"
-    )
-  );
-});
+// res
+//   .status(200)
+//   .cookie("accessToken", accessToken, options)
+//   .cookie("refreshToken", refreshToken, options)
+//   .json(
+//     new apiResponse(
+//       200,
+//       { user: loggedInUser, accessToken, refreshToken },
+//       "user Logged In"
+//     )
+//   );
+// });
+
+const loginUser = asynchandler(async(req,res)=>{
+
+  res.status(200).json(new apiResponse(
+    200 , {data:'tested success'} , "success"  
+  ))
+})
 
 const logoutUser = asynchandler(async(req,res) => {
-  
+
 })
 
 
-export default registerUser;
+export  {registerUser , loginUser};
