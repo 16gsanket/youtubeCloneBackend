@@ -61,7 +61,7 @@ const registerUser = asynchandler(async (req, res, next) => {
   }
 
   //getting the path of images uploaded on server..\
-  console.log(req.files);
+  // console.log(req.files);
 
   const avatarPath = req.files?.avatar[0]?.path;
   // const coverImagePath = req.files?.coverImage[0]?.path;
@@ -71,7 +71,7 @@ const registerUser = asynchandler(async (req, res, next) => {
   if (
     req.files &&
     Array.isArray(req.files.coverImage) &&
-    req.files.coverImage.lenght > 0
+    req.files.coverImage.length > 0
   ) {
     coverImage = req.files.coverImage[0].path;
   }
@@ -103,7 +103,7 @@ const registerUser = asynchandler(async (req, res, next) => {
     username: username.toLowerCase(),
   });
   console.log("made a user");
-  console.log(user);
+  // console.log(user);
 
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
@@ -123,7 +123,7 @@ const loginUser = asynchandler(async (req, res) => {
   const { email, username, password } = req.body;
 
   // validation if username or email exists
-  if (!email || !username) {
+  if (!email && !username) {
     throw new apiError(400, "Provide Email or Username");
   }
 
@@ -133,69 +133,69 @@ const loginUser = asynchandler(async (req, res) => {
   });
   // checking if user if found or not
   if (!userFound) {
-  throw new apiError(404, "user not found");
-}
-
-// checking if password is correct
-const isPasswordValid = await userFound.isPasswordCorrect(password);
-
-// checking if password is correct
-if (!isPasswordValid) {
-  throw new apiError(401, "password is not correct");
-}
-
-const { refreshToken, accessToken } = generateAccessAndRefreshTokens(
-  userFound._id
-);
-
-// this step ensures that we get the user detals with the refresh token and accesstoken although in final step we do not send the token to the user directly
-const loggedInUser = await User.findById(userFound._id).select(
-  "-password -refreshToken"
-);
-
-//setting cookie confugarations..
-const options = {
-  // this 'httpOnly' ensures that only server can change the cookie informations and not anyone
-  httpOnly: true,
-  secure: true,
-};
-
-res
-  .status(200)
-  .cookie("accessToken", accessToken, options)
-  .cookie("refreshToken", refreshToken, options)
-  .json(
-    new apiResponse(
-      200,
-      { user: loggedInUser, accessToken, refreshToken },
-      "user Logged In"
-    )
-  );
-});
-
-
-
-const logoutUser = asynchandler(async(req,res) => {
-  await User.findByIdAndUpdate(req.user._id , {
-    $set:{
-      refreshToken:undefined
-    }
-  } , {
-    new:true
-  })
-
-  const options = {
-    httpOnly:true,
-    secure:true
+    throw new apiError(404, "user not found");
   }
 
-  return res.
-  status(200)
-  .clearCookie('refreshToken',options)
-  .clearCookie('accessToken',options)
-  .json(new apiResponse(200 , {} , "User logged out"))
+  // checking if password is correct
+  const isPasswordValid = await userFound.isPasswordCorrect(password);
 
-})
+  // checking if password is correct
+  if (!isPasswordValid) {
+    throw new apiError(401, "password is not correct");
+  }
 
+  const { refreshToken, accessToken } = generateAccessAndRefreshTokens(
+    userFound._id
+  );
 
-export  {registerUser , loginUser , logoutUser};
+  // this step ensures that we get the user detals with the refresh token and accesstoken although in final step we do not send the token to the user directly
+  const loggedInUser = await User.findById(userFound._id).select(
+    "-password -refreshToken"
+  );
+
+  //setting cookie confugarations..
+  const options = {
+    // this 'httpOnly' ensures that only server can change the cookie informations and not anyone
+    httpOnly: true,
+    secure: true,
+  };
+
+  res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new apiResponse(
+        200,
+        { user: loggedInUser, accessToken, refreshToken },
+        "user Logged In"
+      )
+    );
+});
+
+const logoutUser = asynchandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie("refreshToken", options)
+    .clearCookie("accessToken", options)
+    .json(new apiResponse(200, {}, "User logged out"));
+});
+
+export { registerUser, loginUser, logoutUser };
