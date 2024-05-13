@@ -183,7 +183,7 @@ const loginUser = asynchandler(async(req,res)=>{
 */
 
 const logoutUser = asynchandler(async(req,res) => {
-  console.log(req.accessToken)
+  console.log(req.cookie)
   res.status(200).json(
     new apiResponse(200 , {data : 'req'} , "success")
   )
