@@ -3,6 +3,7 @@ import { apiResponse } from "../utils/apiResponse.js";
 import asynchandler from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudCloudinary } from "../utils/cloudinary.js";
+import jwt from 'jsonwebtoken'
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -218,5 +219,9 @@ const logoutUser = asynchandler(async (req, res) => {
     .clearCookie("accessToken", options)
     .json(new apiResponse(200, {}, "User logged out"));
 });
+
+const refreshAccessToken = asynchandler((req,res)=>{
+  
+})
 
 export { registerUser, loginUser, logoutUser };
