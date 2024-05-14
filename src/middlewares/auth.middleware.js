@@ -1,6 +1,6 @@
 import { apiError } from "../utils/apiError.js"
 import asyncHandler from "../utils/asyncHandler.js"
-import jwt from "json-web-token"
+import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js"
 
 
@@ -17,9 +17,11 @@ export const verifyJWT = asyncHandler(async(req ,_,next)=>{
     
         //we need to decode the token using th jwt.verify(token , toeknSecret)
     
-        const decodedToken = jwt.verifyJWT(token , process.env.ACCESS_TOKEN_SECRET)
-    
-        const user = await User.findOne(decodedToken?._id).select("-password -refreshToken")
+        const decodedToken = jwt.verify(token , process.env.ACCESS_TOKEN_SECRET)
+        console.log(decodedToken)
+        
+        const user = await User.findOne({_id : decodedToken?._id}).select("-password -refreshToken")
+        console.log('surpassed the decoded thing')
     
         if(!user){
             throw new apiError(401  , "access token invalid")
