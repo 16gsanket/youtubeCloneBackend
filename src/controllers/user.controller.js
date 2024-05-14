@@ -3,28 +3,36 @@ import { apiResponse } from "../utils/apiResponse.js";
 import asynchandler from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudCloudinary } from "../utils/cloudinary.js";
+import jwt from 'jsonwebtoken'
 
 const generateAccessAndRefreshTokens = async (userId) => {
-  const user = await User.findById({ userId });
+  try {
+    const user = await User.findById(userId);
+    console.log("inside the generation function... , userID is ", userId);
 
-  // In the userSchema file, the generateRefreshToken and generateAccessToken methods are defined as part of the userSchema methods.
-  // These methods are defined to be available on instances of the User model.
+    // In the userSchema file, the generateRefreshToken and generateAccessToken methods are defined as part of the userSchema methods.
+    // These methods are defined to be available on instances of the User model.
 
-  // When you fetch a user from the database using User.findById({ userId }), the retrieved user object represents an instance of the User model.
-  // Therefore, you can directly call the generateRefreshToken and generateAccessToken methods on this user object.
+    // When you fetch a user from the database using User.findById({ userId }), the retrieved user object represents an instance of the User model.
+    // Therefore, you can directly call the generateRefreshToken and generateAccessToken methods on this user object.
 
-  // In the user.controller.js file, when you have the line:
-  // const user = await User.findById({ userId });
-  // The user object you receive from this query is an instance of the User model, which means you can call the generateRefreshToken and generateAccessToken methods directly on this user object.
+    // In the user.controller.js file, when you have the line:
+    // const user = await User.findById({ userId });
+    // The user object you receive from this query is an instance of the User model, which means you can call the generateRefreshToken and generateAccessToken methods directly on this user object.
 
-  const refreshToken = user.generateRefreshToken();
-  const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+    const accessToken = user.generateAccessToken();
 
-  //saved the refreshtokrn in the database for further use
-  user.refreshToken = refreshToken;
-  await user.save({ validateBeforeSave: false });
+    //saved the refreshtokrn in the database for further use
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
 
-  return { refreshToken, accessToken };
+    console.log("exiting the generation function");
+
+    return { refreshToken, accessToken };
+  } catch (error) {
+    throw new apiError(500, error.message);
+  }
 };
 
 const registerUser = asynchandler(async (req, res, next) => {
@@ -61,7 +69,7 @@ const registerUser = asynchandler(async (req, res, next) => {
   }
 
   //getting the path of images uploaded on server..\
-  console.log(req.files);
+  // console.log(req.files);
 
   const avatarPath = req.files?.avatar[0]?.path;
   // const coverImagePath = req.files?.coverImage[0]?.path;
@@ -71,7 +79,7 @@ const registerUser = asynchandler(async (req, res, next) => {
   if (
     req.files &&
     Array.isArray(req.files.coverImage) &&
-    req.files.coverImage.lenght > 0
+    req.files.coverImage.length > 0
   ) {
     coverImage = req.files.coverImage[0].path;
   }
@@ -103,7 +111,7 @@ const registerUser = asynchandler(async (req, res, next) => {
     username: username.toLowerCase(),
   });
   console.log("made a user");
-  console.log(user);
+  // console.log(user);
 
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
@@ -119,75 +127,101 @@ const registerUser = asynchandler(async (req, res, next) => {
     .json(new apiResponse(200, createdUser, "user registered successfully"));
 });
 
-// const loginUser = asynchandler(async (req, res) => {
-//   const { email, username, password } = req.body;
+const loginUser = asynchandler(async (req, res) => {
+  const { email, username, password } = req.body;
+  console.log("destructured email and password", email, password);
 
-//   // validation if username or email exists
-//   if (!email || !username) {
-//     throw new apiError(400, "Provide Email or Username");
-//   }
+  // validation if username or email exists
+  if (!email && !username) {
+    throw new apiError(400, "Provide Email or Username");
+  }
 
-//   // finding the user from the cred passed
-//   const userFound = await User.findOne({
-//     $or: [{ username }, { email }],
-//   });
-//   // checking if user if found or not
-//   if (!userFound) {
-//   throw new apiError(404, "user not found");
-// }
+  // finding the user from the cred passed
+  const userFound = await User.findOne({
+    $or: [{ username }, { email }],
+  });
 
-// // checking if password is correct
-// const isPasswordValid = await userFound.isPasswordCorrect(password);
+  console.log("user found ", userFound);
+  // checking if user if found or not
+  if (!userFound) {
+    throw new apiError(404, "user not found");
+  }
 
-// // checking if password is correct
-// if (!isPasswordValid) {
-//   throw new apiError(401, "password is not correct");
-// }
+  // checking if password is correct
+  const isPasswordValid = await userFound.isPasswordCorrect(password);
 
-// const { refreshToken, accessToken } = generateAccessAndRefreshTokens(
-//   userFound._id
-// );
+  // checking if password is correct
+  if (!isPasswordValid) {
+    throw new apiError(401, "password is not correct");
+  }
 
-// // this step ensures that we get the user detals with the refresh token and accesstoken although in final step we do not send the token to the user directly
-// const loggedInUser = await User.findById(userFound._id).select(
-//   "-password -refreshToken"
-// );
+  console.log("password is checked", isPasswordValid);
+  // generating access and refresh token with await..(not adding await was an error)
+  console.log("enetering the tokengenertion function...");
+  const { refreshToken, accessToken } = await generateAccessAndRefreshTokens(
+    userFound._id
+  );
 
-// //setting cookie confugarations..
-// const options = {
-//   // this 'httpOnly' ensures that only server can change the cookie informations and not anyone
-//   httpOnly: true,
-//   secure: true,
-// };
+  console.log(
+    "refresh and acces tokens generated ...",
+    refreshToken,
+    accessToken
+  );
 
-// res
-//   .status(200)
-//   .cookie("accessToken", accessToken, options)
-//   .cookie("refreshToken", refreshToken, options)
-//   .json(
-//     new apiResponse(
-//       200,
-//       { user: loggedInUser, accessToken, refreshToken },
-//       "user Logged In"
-//     )
-//   );
-// });
+  // this step ensures that we get the user detals with the refresh token and accesstoken although in final step we do not send the token to the user directly
+  const loggedInUser = await User.findById(userFound._id).select(
+    "-password -refreshToken"
+  );
 
+  console.log("loggedIn user details found here...", loggedInUser);
 
-const loginUser = asynchandler(async(req,res)=>{
+  //setting cookie confugarations..
+  const options = {
+    // this 'httpOnly' ensures that only server can change the cookie informations and not anyone
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new apiResponse(
+        200,
+        { user: loggedInUser, accessToken, refreshToken },
+        "user Logged In"
+      )
+    );
+});
+
+const logoutUser = asynchandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie("refreshToken", options)
+    .clearCookie("accessToken", options)
+    .json(new apiResponse(200, {}, "User logged out"));
+});
+
+const refreshAccessToken = asynchandler((req,res)=>{
   
-  res.status(200).json(new apiResponse(
-    200 , {data:'tested success'} , "success"  
-  ))
 })
 
-
-const logoutUser = asynchandler(async(req,res) => {
-  console.log(req.cookie)
-  res.status(200).json(
-    new apiResponse(200 , {data : 'req'} , "success")
-  )
-})
-
-
-export  {registerUser , loginUser , logoutUser};
+export { registerUser, loginUser, logoutUser };
