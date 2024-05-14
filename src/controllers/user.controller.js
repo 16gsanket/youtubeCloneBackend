@@ -220,8 +220,30 @@ const logoutUser = asynchandler(async (req, res) => {
     .json(new apiResponse(200, {}, "User logged out"));
 });
 
-const refreshAccessToken = asynchandler((req,res)=>{
-  
+const refreshAccessToken = asynchandler(async(req,res)=>{
+
+  /* get the refresh token from the user
+      deonde the tokn using the jwt.verify -> give token as it is..
+      now see if the user is ther in the db ->yes sign a new accestoken and send it to him
+     forn this find if the user exists ->if yes then 
+  */
+
+     const raw_token = req.cookies.refreshToken || req.header("Authorization")?.replace("Bearer " , "")
+    
+     const token = jwt.verify(raw_token , process.env.REFRESH_TOKEN_SECRET)
+
+    const foundUser =  await User.findById({_id:token._id})
+
+    const newAcccessToken = foundUser.generateAccessToken()
+
+    const options = {
+      httpOnly:true,
+      secure:true
+    }
+
+    res.status(200)
+    .cookie("accessToken" , newAcccessToken , options)
+    .json(new apiResponse(200 , {old:raw_token ,new:newAcccessToken} , "route is hit successfully"))
 })
 
-export { registerUser, loginUser, logoutUser };
+export { registerUser, loginUser, logoutUser ,refreshAccessToken };
