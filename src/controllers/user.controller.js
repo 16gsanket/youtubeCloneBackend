@@ -220,8 +220,92 @@ const logoutUser = asynchandler(async (req, res) => {
     .json(new apiResponse(200, {}, "User logged out"));
 });
 
-const refreshAccessToken = asynchandler((req,res)=>{
-  
-})
+// const refreshAccessToken = asynchandler(async(req,res)=>{
+//   //getting the refreshToken
+//     const incomingRefreshToken = req.cookies.refreshAccessToken || req.body.refreshToken
 
-export { registerUser, loginUser, logoutUser };
+//     if(!incomingRefreshToken){
+//       throw new apiError(401 , " unauthorized request ")
+//     }
+
+//     //verify the json token
+
+//     const decoded = jwt.verify(
+//       incomingRefreshToken ,
+//        process.env.REFRESH_TOKEN_SECRET
+//       )
+
+//       const user = await User.findById({_id:decoded._id})
+
+//       if(!user){
+//         throw new apiError(401 ,"invalid token")
+//       }
+
+
+
+
+    
+// })
+
+const testRoute = asynchandler(async (req, res) => {
+  res.status(200).json(201, { data: "success" }, "success in hitting route");
+});
+
+const refreshAccessToken = asynchandler(async(req, res) => {
+  //getting the refreshToken
+  const incomingRefreshToken =
+    req.cookies.refreshAccessToken || req.body.refreshToken;
+
+  if (!incomingRefreshToken) {
+    throw new apiError(401, " unauthorized request ");
+  }
+
+  //verify the json token
+
+  try {
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById({ _id: decodedToken._id });
+
+    if (!user) {
+      throw new apiError(401, "invalid token");
+    }
+
+    if (incomingRefreshToken !== user.refreshToken) {
+      throw new apiError(201, "Refresh token is expired or used");
+    }
+
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+
+    const { accessToken, newRefreshToken } =
+      await generateAccessAndRefreshTokens(user._id);
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", newRefreshToken, options)
+      .json(
+        new apiResponse(
+          200,
+          {
+            accessToken,
+            refreshToken: newRefreshToken,
+          },
+          "accessToken refreshed successuflly"
+        )
+      );
+  } catch (error) {
+    throw new apiError(
+      401,
+      error?.message || "Invalid refersh Token..line in try-catch"
+    );
+  }
+});
+
+export { registerUser, loginUser, logoutUser , refreshAccessToken ,testRoute };
