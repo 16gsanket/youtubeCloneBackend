@@ -3,7 +3,7 @@ import { apiResponse } from "../utils/apiResponse.js";
 import asynchandler from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudCloudinary } from "../utils/cloudinary.js";
-import jwt from 'jsonwebtoken'
+import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -241,17 +241,13 @@ const logoutUser = asynchandler(async (req, res) => {
 //         throw new apiError(401 ,"invalid token")
 //       }
 
-
-
-
-    
 // })
 
 const testRoute = asynchandler(async (req, res) => {
   res.status(200).json(201, { data: "success" }, "success in hitting route");
 });
 
-const refreshAccessToken = asynchandler(async(req, res) => {
+const refreshAccessToken = asynchandler(async (req, res) => {
   //getting the refreshToken
   const incomingRefreshToken =
     req.cookies.refreshAccessToken || req.body.refreshToken;
@@ -308,4 +304,131 @@ const refreshAccessToken = asynchandler(async(req, res) => {
   }
 });
 
-export { registerUser, loginUser, logoutUser , refreshAccessToken ,testRoute };
+const changeCurrentUserPassword = asynchandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body; //,confirmPassword
+
+  if (confirmPassword && newPassword !== confirmPassword) {
+    throw new apiError(400, "confirm and newPassword do not match");
+  }
+
+  const user = await User.findById({ _id: req.user?._id });
+
+  if (!user) {
+    throw new apiError(400, "user not found! error in pswdchange controller");
+  }
+
+  const ispasswordCorrect = user.isPasswordCorrect(oldPassword);
+
+  if (!ispasswordCorrect) {
+    throw new apiError(400, "Invalid old password");
+  }
+
+  user.password = newPassword;
+
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new apiResponse(200, {}, "password changed successfully"));
+});
+
+const getCurrentUser = asynchandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new apiResponse(200, req.user, "user detail sent "));
+});
+
+const updateUserDetails = asynchandler(async (req, res) => {
+  const { fullName, email } = req.body;
+
+  if (!fullName || !email) {
+    throw new apiError(400, "need either username or email");
+  }
+
+  const user = await User.findOneAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        fullName,
+        email,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new apiResponse(200, user, "Account Details updated successfully"));
+});
+
+const updateUserAvatar = asynchandler(async (req, res) => {
+  //getting the avatar file path from the server to save it into the cloudinary
+  const avatarFilePath = req.file?.path;
+
+  // check if avatar file path is available
+  if (!avatarFilePath) {
+    throw new apiError(200, "avatar file path is not available");
+  }
+
+  const avatarURL = await uploadOnCloudCloudinary(avatarFilePath);
+
+  if (!avatarURL.url) {
+    new apiError(500, "error while uploading the avatar to cloudinary");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        avatar: avatarURL.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  await user.save({ validateBeforeSave: false });
+
+  return res.status(200).json(200, user, "avatar updated successfully");
+});
+
+const updateUserCoverPhoto = asynchandler(async (req, res) => {
+  const coverPhotoPath = req.file?.path;
+
+  if (!coverPhotoPath) {
+    throw new apiError(404, "cover photo file path is not available");
+  }
+  const coverPhotoURL = await uploadOnCloudCloudinary(coverPhotoPath);
+
+  if (!coverPhotoURL.url) {
+    new apiError(500, "error while uploading the cover photo to cloudinary");
+  }
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        coverImage: coverPhotoURL.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  await user.save({ validateBeforeSave: false });
+
+  return res.status(200).json(200, user, "cover-photo updated successfully");
+});
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  testRoute,
+  changeCurrentUserPassword,
+  getCurrentUser,
+  updateUserDetails,
+  updateUserAvatar,
+  updateUserCoverPhoto,
+  updateUserAvatar,
+};
