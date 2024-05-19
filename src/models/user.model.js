@@ -52,6 +52,7 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
+// to hash the password before saving it to the database
 userSchema.pre("save", async function (next) {
   // to hash the password before saving it to the database
 
@@ -98,14 +99,13 @@ userSchema.methods.generateRefreshToken = function () {
 
   return jwt.sign(
     {
-        _id: this._id,
-        
+      _id: this._id,
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
-        expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
     }
-)
+  );
   // return jwt.sign(
   //   {
   //     _id:this._id,

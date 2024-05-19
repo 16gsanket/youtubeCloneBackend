@@ -350,7 +350,7 @@ const updateUserDetails = asynchandler(async (req, res) => {
     {
       $set: {
         fullName,
-        email,
+        email:email, 
       },
     },
     {
@@ -364,6 +364,10 @@ const updateUserDetails = asynchandler(async (req, res) => {
 });
 
 const updateUserAvatar = asynchandler(async (req, res) => {
+
+  // do to delete the previous avatar
+
+
   //getting the avatar file path from the server to save it into the cloudinary
   const avatarFilePath = req.file?.path;
 
