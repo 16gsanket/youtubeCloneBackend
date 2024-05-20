@@ -3,7 +3,7 @@ import { apiResponse } from "../utils/apiResponse.js";
 import asynchandler from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudCloudinary } from "../utils/cloudinary.js";
-import jwt from 'jsonwebtoken'
+import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -220,32 +220,219 @@ const logoutUser = asynchandler(async (req, res) => {
     .json(new apiResponse(200, {}, "User logged out"));
 });
 
-const refreshAccessToken = asynchandler(async(req,res)=>{
+// const refreshAccessToken = asynchandler(async(req,res)=>{
+//   //getting the refreshToken
+//     const incomingRefreshToken = req.cookies.refreshAccessToken || req.body.refreshToken
 
-  /* get the refresh token from the user
-      deonde the tokn using the jwt.verify -> give token as it is..
-      now see if the user is ther in the db ->yes sign a new accestoken and send it to him
-     forn this find if the user exists ->if yes then 
-  */
+//     if(!incomingRefreshToken){
+//       throw new apiError(401 , " unauthorized request ")
+//     }
 
-     const raw_token = req.cookies.refreshToken || req.header("Authorization")?.replace("Bearer " , "")
-    
-     const token = jwt.verify(raw_token , process.env.REFRESH_TOKEN_SECRET)
+//     //verify the json token
 
-    const foundUser =  await User.findById({_id:token._id})
+//     const decoded = jwt.verify(
+//       incomingRefreshToken ,
+//        process.env.REFRESH_TOKEN_SECRET
+//       )
 
-    const newAcccessToken = foundUser.generateAccessToken()
+//       const user = await User.findById({_id:decoded._id})
 
-    const options = {
-      httpOnly:true,
-      secure:true
+//       if(!user){
+//         throw new apiError(401 ,"invalid token")
+//       }
+
+// })
+
+const testRoute = asynchandler(async (req, res) => {
+  res.status(200).json(201, { data: "success" }, "success in hitting route");
+});
+
+const refreshAccessToken = asynchandler(async (req, res) => {
+  //getting the refreshToken
+  const incomingRefreshToken =
+    req.cookies.refreshAccessToken || req.body.refreshToken;
+
+  if (!incomingRefreshToken) {
+    throw new apiError(401, " unauthorized request ");
+  }
+
+  //verify the json token
+
+  try {
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById({ _id: decodedToken._id });
+
+    if (!user) {
+      throw new apiError(401, "invalid token");
     }
 
-    res.status(200)
-    .cookie("accessToken" , newAcccessToken , options)
-    .json(new apiResponse(200 , {old:raw_token ,new:newAcccessToken} , "route is hit successfully"))
-})
+    if (incomingRefreshToken !== user.refreshToken) {
+      throw new apiError(201, "Refresh token is expired or used");
+    }
+
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+
+    const { accessToken, newRefreshToken } =
+      await generateAccessAndRefreshTokens(user._id);
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", newRefreshToken, options)
+      .json(
+        new apiResponse(
+          200,
+          {
+            accessToken,
+            refreshToken: newRefreshToken,
+          },
+          "accessToken refreshed successuflly"
+        )
+      );
+  } catch (error) {
+    throw new apiError(
+      401,
+      error?.message || "Invalid refersh Token..line in try-catch"
+    );
+  }
+});
+
+const changeCurrentUserPassword = asynchandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body; //,confirmPassword
+
+  if (confirmPassword && newPassword !== confirmPassword) {
+    throw new apiError(400, "confirm and newPassword do not match");
+  }
+
+  const user = await User.findById({ _id: req.user?._id });
+
+  if (!user) {
+    throw new apiError(400, "user not found! error in pswdchange controller");
+  }
+
+  const ispasswordCorrect = user.isPasswordCorrect(oldPassword);
+
+  if (!ispasswordCorrect) {
+    throw new apiError(400, "Invalid old password");
+  }
+
+  user.password = newPassword;
+
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new apiResponse(200, {}, "password changed successfully"));
+});
+
+const getCurrentUser = asynchandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new apiResponse(200, req.user, "user detail sent "));
+});
+
+const updateUserDetails = asynchandler(async (req, res) => {
+  const { fullName, email } = req.body;
+
+  if (!fullName || !email) {
+    throw new apiError(400, "need either username or email");
+  }
+
+  const user = await User.findOneAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        fullName,
+        email:email, 
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new apiResponse(200, user, "Account Details updated successfully"));
+});
+
+const updateUserAvatar = asynchandler(async (req, res) => {
+
+  // do to delete the previous avatar
 
 
+  //getting the avatar file path from the server to save it into the cloudinary
+  const avatarFilePath = req.file?.path;
 
-export { registerUser, loginUser, logoutUser ,refreshAccessToken };
+  // check if avatar file path is available
+  if (!avatarFilePath) {
+    throw new apiError(200, "avatar file path is not available");
+  }
+
+  const avatarURL = await uploadOnCloudCloudinary(avatarFilePath);
+
+  if (!avatarURL.url) {
+    new apiError(500, "error while uploading the avatar to cloudinary");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        avatar: avatarURL.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  await user.save({ validateBeforeSave: false });
+
+  return res.status(200).json(200, user, "avatar updated successfully");
+});
+
+const updateUserCoverPhoto = asynchandler(async (req, res) => {
+  const coverPhotoPath = req.file?.path;
+
+  if (!coverPhotoPath) {
+    throw new apiError(404, "cover photo file path is not available");
+  }
+  const coverPhotoURL = await uploadOnCloudCloudinary(coverPhotoPath);
+
+  if (!coverPhotoURL.url) {
+    new apiError(500, "error while uploading the cover photo to cloudinary");
+  }
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        coverImage: coverPhotoURL.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  await user.save({ validateBeforeSave: false });
+
+  return res.status(200).json(200, user, "cover-photo updated successfully");
+});
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  testRoute,
+  changeCurrentUserPassword,
+  getCurrentUser,
+  updateUserDetails,
+  updateUserAvatar,
+  updateUserCoverPhoto,
+  updateUserAvatar,
+};
