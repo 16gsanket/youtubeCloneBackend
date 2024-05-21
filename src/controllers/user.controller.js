@@ -4,6 +4,7 @@ import asynchandler from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudCloudinary } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
+import mongoose, { mongo } from "mongoose";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -424,6 +425,9 @@ const updateUserCoverPhoto = asynchandler(async (req, res) => {
   return res.status(200).json(200, user, "cover-photo updated successfully");
 });
 
+
+// CAUTION : pipelines used in the further 2 conttrollers
+
 const getUserChannelProfile = asynchandler(async(req, res)=>{
   
   const {username} = req.params;
@@ -512,6 +516,63 @@ const getUserChannelProfile = asynchandler(async(req, res)=>{
 
 })
 
+const getWatchHistory = asynchandler(async (req, res) => {
+
+    const user = User.aggregate(
+      [
+        {
+          $match:{
+            _id:mongoose.Schema.Types.ObjectId(req.user._id)
+          }
+        }
+        ,
+        {
+          $lookup:{
+            from:'videos',
+            localField:'watchHistory',
+            foreignField:'_id',
+            as:'watchHistory',
+            pipeline:[
+              {
+                $lookup:{
+                  from:'users',
+                  localField:'owner',
+                  foreignField:'_id',
+                  as:'owner',
+                  pipeline:[
+                    {
+                      $project:{
+                        fullName:1,
+                        username:1,
+                        avatar:1
+                      }
+                    }
+                  ]
+
+                }
+              },
+              {
+                $addFields:{
+                  owner:{
+                    $first : '$first'
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    )
+
+    return res.status(200).json(
+      new apiResponse(200 , user.watchHistory[0] , "wathed hostory in array done")
+    )
+
+
+  }
+)
+
+
 export {
   registerUser,
   loginUser,
@@ -524,5 +585,6 @@ export {
   updateUserAvatar,
   updateUserCoverPhoto,
   updateUserAvatar,
-  getUserChannelProfile
+  getUserChannelProfile,
+  getWatchHistory
 };
