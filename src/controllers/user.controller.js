@@ -397,6 +397,7 @@ const updateUserAvatar = asynchandler(async (req, res) => {
   return res.status(200).json(200, user, "avatar updated successfully");
 });
 
+
 const updateUserCoverPhoto = asynchandler(async (req, res) => {
   const coverPhotoPath = req.file?.path;
 
