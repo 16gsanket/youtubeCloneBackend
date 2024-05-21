@@ -424,6 +424,94 @@ const updateUserCoverPhoto = asynchandler(async (req, res) => {
   return res.status(200).json(200, user, "cover-photo updated successfully");
 });
 
+const getUserChannelProfile = asynchandler(async(req, res)=>{
+  
+  const {username} = req.params;
+  
+  if(!username?.trime()){
+    throw new apiError(400 , "username cannot be fetched from the params")
+  }
+  
+  // This is an aggregate pipeline that retrieves a user's channel information, including the number of subscribers, the number of people they are subscribed to, and whether the current user is subscribed to the channel.
+  // The pipeline uses the following stages:
+  // 1. Match: Filters the documents based on the user ID.
+  // 2. Lookup: Joins the 'User' collection and retrieves the user's subscribers and the channels they are subscribed to.
+  const channel = await User.aggregate(
+    [
+      {
+        $match:{
+          username:username?.toLowerCase()
+        }
+      },
+      {
+        //first pipeline to get the number of subscriber by finding all the chanels ffrom the document
+        $lookup:{
+          // the model name becomes small case and plural for mongodb storage so Subscription -> subscriptions
+          from:"subscriptions",
+          localField:"_id",
+          foriegnKey : "channel",
+          as:"subscribers"
+        }
+      }
+      ,
+      {
+        // second pipleline to get the number of SubscribedTo people to show it in diplay by selecting the fields with only user as current user which gives us array of channle you are subscribed to
+        $lookup:{
+          from:"subscriptions",
+          localField:"_id",
+          foriegnKey : "subscriber",
+          as:"subscribedTo"
+        }
+      }
+      ,
+      {
+        // now add fields to the document to get the number of subscriber and subscribedTo by $size and $addFields
+        $addFields:{
+          subscriberCount:{
+            $size:"$subscribers"
+          },
+          channelSubscriberToCount:{
+            $size:"$subscribedTo"
+          },
+          // returns true or false for the current user if he is subscribed or not
+          isSubscribed:{
+            $cond : {
+              if :{$in: [req.user._id , "$subscribers.subscriber"]},
+              then:true,
+              else:false
+            }
+          }
+        }
+      },
+      {
+        $project:{
+          fullName:1,
+          username:1,
+          avatar:1,
+          subscriberCount:1,
+          channelSubscriberToCount:1,
+          isSubscribed:1,
+          coverImage:1,
+          email:1,
+        }
+      }
+    ]
+  )
+
+  if(!channel?.length){
+    throw new apiError(400 , "the channel is not being fetched from the database in controller getUserChannelProdile")
+  }
+
+  return res
+  .status(200)
+  .json(
+    new apiResponse(200 , channel.at(0) , "channel fetched successfully and sent to the front end in the obejct format")
+  )
+
+  
+
+})
+
 export {
   registerUser,
   loginUser,
@@ -436,4 +524,5 @@ export {
   updateUserAvatar,
   updateUserCoverPhoto,
   updateUserAvatar,
+  getUserChannelProfile
 };
