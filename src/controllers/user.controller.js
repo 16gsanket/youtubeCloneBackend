@@ -28,7 +28,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
-    console.log("exiting the generation function");
+    console.log("exiting the generation function with values ", "access ", accessToken , "refresh as ",refreshToken);
 
     return { refreshToken, accessToken };
   } catch (error) {
@@ -72,9 +72,13 @@ const registerUser = asynchandler(async (req, res, next) => {
   //getting the path of images uploaded on server..\
   // console.log(req.files);
 
+  // the middleware mutler joing the req object with the req.files which has the array of the files uploaded through the multer
+
   const avatarPath = req.files?.avatar[0]?.path;
+
   // const coverImagePath = req.files?.coverImage[0]?.path;
   //handling a testcase where the coverImage is not provided
+
   let coverImagePath;
 
   if (
@@ -82,14 +86,13 @@ const registerUser = asynchandler(async (req, res, next) => {
     Array.isArray(req.files.coverImage) &&
     req.files.coverImage.length > 0
   ) {
-    coverImage = req.files.coverImage[0].path;
+    coverImagePath = req.files.coverImage[0].path;
   }
 
   //checking is avatr is added or not
   if (!avatarPath) {
     throw new apiError(400, "avatar image not uploaded");
   }
-  console.log("avatar checked...");
 
   //uploading the images to the cloudinary:-
   const avatar = await uploadOnCloudCloudinary(avatarPath);
@@ -100,8 +103,7 @@ const registerUser = asynchandler(async (req, res, next) => {
   }
   console.log("avatar image uploaded to cloudinary...");
 
-  //Creating user Object and adding it to database
-  console.log("making a user");
+  //Creating user Object(document ) and adding it to cluster (users cluster)
 
   const user = await User.create({
     fullName,
@@ -112,7 +114,6 @@ const registerUser = asynchandler(async (req, res, next) => {
     username: username.toLowerCase(),
   });
   console.log("made a user");
-  // console.log(user);
 
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
@@ -251,12 +252,13 @@ const testRoute = asynchandler(async (req, res) => {
 const refreshAccessToken = asynchandler(async (req, res) => {
   //getting the refreshToken
   const incomingRefreshToken =
-    req.cookies.refreshAccessToken || req.body.refreshToken;
+    req.cookies.refreshToken || req.body.refreshToken;
 
   if (!incomingRefreshToken) {
     throw new apiError(401, " unauthorized request ");
   }
 
+  console.log('refresh token from the user ',incomingRefreshToken)
   //verify the json token
 
   try {
@@ -271,6 +273,8 @@ const refreshAccessToken = asynchandler(async (req, res) => {
       throw new apiError(401, "invalid token");
     }
 
+
+    // checking if the refresh token match ... from user and from the stored in dataBase
     if (incomingRefreshToken !== user.refreshToken) {
       throw new apiError(201, "Refresh token is expired or used");
     }
@@ -280,8 +284,10 @@ const refreshAccessToken = asynchandler(async (req, res) => {
       secure: true,
     };
 
-    const { accessToken, newRefreshToken } =
+    const { accessToken, refreshToken:newRefreshToken } =
       await generateAccessAndRefreshTokens(user._id);
+
+    console.log('new refresh token ', newRefreshToken)
 
     return res
       .status(200)
@@ -292,7 +298,7 @@ const refreshAccessToken = asynchandler(async (req, res) => {
           200,
           {
             accessToken,
-            refreshToken: newRefreshToken,
+            refreshToken: newRefreshToken || 'new one',
           },
           "accessToken refreshed successuflly"
         )
@@ -308,9 +314,11 @@ const refreshAccessToken = asynchandler(async (req, res) => {
 const changeCurrentUserPassword = asynchandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body; //,confirmPassword
 
-  if (confirmPassword && newPassword !== confirmPassword) {
-    throw new apiError(400, "confirm and newPassword do not match");
-  }
+
+  // check if the new password and confirm password match...not in this one
+  // if (confirmPassword && newPassword !== confirmPassword) {
+  //   throw new apiError(400, "confirm and newPassword do not match");
+  // }
 
   const user = await User.findById({ _id: req.user?._id });
 
@@ -334,10 +342,17 @@ const changeCurrentUserPassword = asynchandler(async (req, res) => {
 });
 
 const getCurrentUser = asynchandler(async (req, res) => {
+
+  if(!req.user){
+    throw new apiError(400 , " user is not logged in")
+  }
+
   return res
     .status(200)
     .json(new apiResponse(200, req.user, "user detail sent "));
 });
+
+
 
 const updateUserDetails = asynchandler(async (req, res) => {
   const { fullName, email } = req.body;
@@ -351,7 +366,7 @@ const updateUserDetails = asynchandler(async (req, res) => {
     {
       $set: {
         fullName,
-        email:email, 
+        email: email,
       },
     },
     {
@@ -365,9 +380,7 @@ const updateUserDetails = asynchandler(async (req, res) => {
 });
 
 const updateUserAvatar = asynchandler(async (req, res) => {
-
   // do to delete the previous avatar
-
 
   //getting the avatar file path from the server to save it into the cloudinary
   const avatarFilePath = req.file?.path;
@@ -398,7 +411,6 @@ const updateUserAvatar = asynchandler(async (req, res) => {
   return res.status(200).json(200, user, "avatar updated successfully");
 });
 
-
 const updateUserCoverPhoto = asynchandler(async (req, res) => {
   const coverPhotoPath = req.file?.path;
 
@@ -425,153 +437,144 @@ const updateUserCoverPhoto = asynchandler(async (req, res) => {
   return res.status(200).json(200, user, "cover-photo updated successfully");
 });
 
-
 // CAUTION : pipelines used in the further 2 conttrollers
 
-const getUserChannelProfile = asynchandler(async(req, res)=>{
-  
-  const {username} = req.params;
-  
-  if(!username?.trime()){
-    throw new apiError(400 , "username cannot be fetched from the params")
+const getUserChannelProfile = asynchandler(async (req, res) => {
+  const { username } = req.params;
+
+  if (!username?.trim()) {
+    throw new apiError(400, "username cannot be fetched from the params");
   }
-  
+
   // This is an aggregate pipeline that retrieves a user's channel information, including the number of subscribers, the number of people they are subscribed to, and whether the current user is subscribed to the channel.
   // The pipeline uses the following stages:
   // 1. Match: Filters the documents based on the user ID.
   // 2. Lookup: Joins the 'User' collection and retrieves the user's subscribers and the channels they are subscribed to.
-  const channel = await User.aggregate(
-    [
-      {
-        $match:{
-          username:username?.toLowerCase()
-        }
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
       },
-      {
-        //first pipeline to get the number of subscriber by finding all the chanels ffrom the document
-        $lookup:{
-          // the model name becomes small case and plural for mongodb storage so Subscription -> subscriptions
-          from:"subscriptions",
-          localField:"_id",
-          foriegnKey : "channel",
-          as:"subscribers"
-        }
-      }
-      ,
-      {
-        // second pipleline to get the number of SubscribedTo people to show it in diplay by selecting the fields with only user as current user which gives us array of channle you are subscribed to
-        $lookup:{
-          from:"subscriptions",
-          localField:"_id",
-          foriegnKey : "subscriber",
-          as:"subscribedTo"
-        }
-      }
-      ,
-      {
-        // now add fields to the document to get the number of subscriber and subscribedTo by $size and $addFields
-        $addFields:{
-          subscriberCount:{
-            $size:"$subscribers"
-          },
-          channelSubscriberToCount:{
-            $size:"$subscribedTo"
-          },
-          // returns true or false for the current user if he is subscribed or not
-          isSubscribed:{
-            $cond : {
-              if :{$in: [req.user._id , "$subscribers.subscriber"]},
-              then:true,
-              else:false
-            }
-          }
-        }
+    },
+    {
+      //first pipeline to get the number of subscriber by finding all the chanels ffrom the document
+      $lookup: {
+        // the model name becomes small case and plural for mongodb storage so Subscription -> subscriptions
+        from: "subscriptions",
+        localField: "_id",
+        foriegnKey: "channel",
+        as: "subscribers",
       },
-      {
-        $project:{
-          fullName:1,
-          username:1,
-          avatar:1,
-          subscriberCount:1,
-          channelSubscriberToCount:1,
-          isSubscribed:1,
-          coverImage:1,
-          email:1,
-        }
-      }
-    ]
-  )
+    },
+    {
+      // second pipleline to get the number of SubscribedTo people to show it in diplay by selecting the fields with only user as current user which gives us array of channle you are subscribed to
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foriegnKey: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      // now add fields to the document to get the number of subscriber and subscribedTo by $size and $addFields
+      $addFields: {
+        subscriberCount: {
+          $size: "$subscribers",
+        },
+        channelSubscriberToCount: {
+          $size: "$subscribedTo",
+        },
+        // returns true or false for the current user if he is subscribed or not
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        avatar: 1,
+        subscriberCount: 1,
+        channelSubscriberToCount: 1,
+        isSubscribed: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
 
-  if(!channel?.length){
-    throw new apiError(400 , "the channel is not being fetched from the database in controller getUserChannelProdile")
+  if (!channel?.length) {
+    throw new apiError(
+      400,
+      "the channel is not being fetched from the database in controller getUserChannelProdile"
+    );
   }
 
   return res
-  .status(200)
-  .json(
-    new apiResponse(200 , channel.at(0) , "channel fetched successfully and sent to the front end in the obejct format")
-  )
-
-  
-
-})
+    .status(200)
+    .json(
+      new apiResponse(
+        200,
+        channel.at(0),
+        "channel fetched successfully and sent to the front end in the obejct format"
+      )
+    );
+});
 
 const getWatchHistory = asynchandler(async (req, res) => {
-
-    const user = User.aggregate(
-      [
-        {
-          $match:{
-            _id:mongoose.Schema.Types.ObjectId(req.user._id)
-          }
-        }
-        ,
-        {
-          $lookup:{
-            from:'videos',
-            localField:'watchHistory',
-            foreignField:'_id',
-            as:'watchHistory',
-            pipeline:[
-              {
-                $lookup:{
-                  from:'users',
-                  localField:'owner',
-                  foreignField:'_id',
-                  as:'owner',
-                  pipeline:[
-                    {
-                      $project:{
-                        fullName:1,
-                        username:1,
-                        avatar:1
-                      }
-                    }
-                  ]
-
-                }
+  const user = User.aggregate([
+    {
+      $match: {
+        _id: mongoose.Schema.Types.ObjectId(req.user._id),
+      },
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistory",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              pipeline: [
+                {
+                  $project: {
+                    fullName: 1,
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $addFields: {
+              owner: {
+                $first: "$first",
               },
-              {
-                $addFields:{
-                  owner:{
-                    $first : '$first'
-                  }
-                }
-              }
-            ]
-          }
-        }
-      ]
-    )
+            },
+          },
+        ],
+      },
+    },
+  ]);
 
-    return res.status(200).json(
-      new apiResponse(200 , user.watchHistory[0] , "wathed hostory in array done")
-    )
-
-
-  }
-)
-
+  return res
+    .status(200)
+    .json(
+      new apiResponse(200, user.watchHistory[0], "wathed hostory in array done")
+    );
+});
 
 export {
   registerUser,
@@ -584,7 +587,6 @@ export {
   updateUserDetails,
   updateUserAvatar,
   updateUserCoverPhoto,
-  updateUserAvatar,
   getUserChannelProfile,
-  getWatchHistory
+  getWatchHistory,
 };
