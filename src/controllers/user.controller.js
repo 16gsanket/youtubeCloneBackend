@@ -28,7 +28,13 @@ const generateAccessAndRefreshTokens = async (userId) => {
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
-    console.log("exiting the generation function with values ", "access ", accessToken , "refresh as ",refreshToken);
+    console.log(
+      "exiting the generation function with values ",
+      "access ",
+      accessToken,
+      "refresh as ",
+      refreshToken
+    );
 
     return { refreshToken, accessToken };
   } catch (error) {
@@ -201,8 +207,8 @@ const logoutUser = asynchandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set: {
-        refreshToken: undefined,
+      $unset: {
+        refreshToken: 1, //this remives the field form document
       },
     },
     {
@@ -258,7 +264,7 @@ const refreshAccessToken = asynchandler(async (req, res) => {
     throw new apiError(401, " unauthorized request ");
   }
 
-  console.log('refresh token from the user ',incomingRefreshToken)
+  console.log("refresh token from the user ", incomingRefreshToken);
   //verify the json token
 
   try {
@@ -273,7 +279,6 @@ const refreshAccessToken = asynchandler(async (req, res) => {
       throw new apiError(401, "invalid token");
     }
 
-
     // checking if the refresh token match ... from user and from the stored in dataBase
     if (incomingRefreshToken !== user.refreshToken) {
       throw new apiError(201, "Refresh token is expired or used");
@@ -284,10 +289,10 @@ const refreshAccessToken = asynchandler(async (req, res) => {
       secure: true,
     };
 
-    const { accessToken, refreshToken:newRefreshToken } =
+    const { accessToken, refreshToken: newRefreshToken } =
       await generateAccessAndRefreshTokens(user._id);
 
-    console.log('new refresh token ', newRefreshToken)
+    console.log("new refresh token ", newRefreshToken);
 
     return res
       .status(200)
@@ -298,7 +303,7 @@ const refreshAccessToken = asynchandler(async (req, res) => {
           200,
           {
             accessToken,
-            refreshToken: newRefreshToken || 'new one',
+            refreshToken: newRefreshToken || "new one",
           },
           "accessToken refreshed successuflly"
         )
@@ -313,7 +318,6 @@ const refreshAccessToken = asynchandler(async (req, res) => {
 
 const changeCurrentUserPassword = asynchandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body; //,confirmPassword
-
 
   // check if the new password and confirm password match...not in this one
   // if (confirmPassword && newPassword !== confirmPassword) {
@@ -342,17 +346,14 @@ const changeCurrentUserPassword = asynchandler(async (req, res) => {
 });
 
 const getCurrentUser = asynchandler(async (req, res) => {
-
-  if(!req.user){
-    throw new apiError(400 , " user is not logged in")
+  if (!req.user) {
+    throw new apiError(400, " user is not logged in");
   }
 
   return res
     .status(200)
     .json(new apiResponse(200, req.user, "user detail sent "));
 });
-
-
 
 const updateUserDetails = asynchandler(async (req, res) => {
   const { fullName, email } = req.body;
